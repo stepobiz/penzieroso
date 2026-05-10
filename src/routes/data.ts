@@ -4,6 +4,11 @@ import { PostBody, PutKeyBody } from '../types';
 
 const router = Router();
 
+router.head('/:name', (req: Request, res: Response) => {
+  const entry = readEntry(req.params['name'] as string);
+  res.status(entry ? 200 : 404).end();
+});
+
 router.get('/:name', async (req: Request, res: Response) => {
   const { name } = req.params;
   const key = req.query['key'];
