@@ -1,0 +1,19 @@
+title: Penzieroso
+description: Generic key-value storage REST backend
+theme: cayman
+
+url: "https://stepobiz.github.io"
+baseurl: "/penzieroso"
+
+show_downloads: false
+google_analytics:
+
+header_pages:
+  - getting-started.md
+  - api-reference.md
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
