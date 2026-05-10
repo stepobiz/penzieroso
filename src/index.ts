@@ -54,11 +54,31 @@ app.get(`${BASE_PATH}/`, (_req: Request, res: Response) => {
     .step .path { color: #a78bfa }
     .step .status { color: #4ade80; margin-left: .5rem }
     .links { display: flex; gap: 1rem; margin-top: 2rem }
-    a.btn { display: inline-flex; align-items: center; gap: .5rem; padding: .625rem 1.25rem; border-radius: 8px; font-size: .9rem; font-weight: 500; text-decoration: none; transition: opacity .15s }
-    a.btn:hover { opacity: .85 }
+    a.btn, button.btn { display: inline-flex; align-items: center; gap: .5rem; padding: .625rem 1.25rem; border-radius: 8px; font-size: .9rem; font-weight: 500; text-decoration: none; transition: opacity .15s; cursor: pointer; border: none; font-family: inherit }
+    a.btn:hover, button.btn:hover { opacity: .85 }
     .btn-primary { background: #6366f1; color: #fff }
     .btn-secondary { background: #1e293b; color: #94a3b8; border: 1px solid #334155 }
+    .btn-danger { background: #7f1d1d; color: #fca5a5; border: 1px solid #991b1b }
     .badge { display: inline-block; background: #14532d; color: #4ade80; font-size: .7rem; font-weight: 600; padding: .15rem .5rem; border-radius: 99px; vertical-align: middle; margin-left: .5rem }
+
+    /* modal overlay */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem }
+    .overlay.open { display: flex }
+    .modal { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.75rem; width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 1.25rem }
+    .modal-title { font-size: 1.1rem; font-weight: 600; color: #f8fafc }
+    .modal-meta { font-size: .8rem; color: #64748b }
+    .modal-meta span { color: #94a3b8; font-weight: 500 }
+    label { display: flex; flex-direction: column; gap: .4rem; font-size: .85rem; color: #94a3b8 }
+    input[type=text], input[type=password] { background: #0f1117; border: 1px solid #334155; border-radius: 6px; padding: .5rem .75rem; color: #e2e8f0; font-size: .95rem; font-family: inherit; outline: none; transition: border-color .15s }
+    input:focus { border-color: #6366f1 }
+    .editor { font-family: 'SF Mono', 'Fira Code', monospace; font-size: .85rem; background: #0f1117; border: 1px solid #334155; border-radius: 6px; padding: .75rem; color: #e2e8f0; resize: vertical; min-height: 220px; outline: none; transition: border-color .15s; width: 100% }
+    .editor:focus { border-color: #6366f1 }
+    .editor.error { border-color: #ef4444 }
+    .modal-actions { display: flex; justify-content: flex-end; gap: .75rem }
+    .msg { font-size: .82rem; padding: .5rem .75rem; border-radius: 6px; display: none }
+    .msg.show { display: block }
+    .msg.ok { background: #14532d; color: #4ade80 }
+    .msg.err { background: #7f1d1d; color: #fca5a5 }
   </style>
 </head>
 <body>
@@ -93,10 +113,167 @@ app.get(`${BASE_PATH}/`, (_req: Request, res: Response) => {
     </div>
 
     <div class="links">
-      <a class="btn btn-primary" href="${base}/docs">Swagger UI</a>
+      <button class="btn btn-primary" onclick="openLoginModal()">Apri namespace</button>
+      <a class="btn btn-secondary" href="${base}/docs">Swagger UI</a>
       <a class="btn btn-secondary" href="${base}/openapi.json">openapi.json</a>
     </div>
   </div>
+
+  <!-- step 1: login -->
+  <div class="overlay" id="loginOverlay" onclick="overlayClick(event,'loginOverlay')">
+    <div class="modal">
+      <div class="modal-title">Apri namespace</div>
+      <label>Name
+        <input type="text" id="loginName" placeholder="myapp" autocomplete="off" />
+      </label>
+      <label>Key
+        <input type="password" id="loginKey" placeholder="••••••••" />
+      </label>
+      <div class="msg" id="loginMsg"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal('loginOverlay')">Annulla</button>
+        <button class="btn btn-primary" id="loginBtn" onclick="doLogin()">Apri</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- step 2: editor -->
+  <div class="overlay" id="editorOverlay" onclick="overlayClick(event,'editorOverlay')">
+    <div class="modal">
+      <div>
+        <div class="modal-title" id="editorTitle">namespace</div>
+        <div class="modal-meta" id="editorMeta"></div>
+      </div>
+      <textarea class="editor" id="editorArea" spellcheck="false"></textarea>
+      <div class="msg" id="editorMsg"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal('editorOverlay')">Chiudi</button>
+        <button class="btn btn-primary" id="saveBtn" onclick="doSave()">Salva</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BASE = '${base}';
+    let _name = '', _key = '';
+
+    function openLoginModal() {
+      document.getElementById('loginName').value = '';
+      document.getElementById('loginKey').value = '';
+      showMsg('loginMsg', '', '');
+      document.getElementById('loginOverlay').classList.add('open');
+      setTimeout(() => document.getElementById('loginName').focus(), 50);
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('open');
+    }
+
+    function overlayClick(e, id) {
+      if (e.target === document.getElementById(id)) closeModal(id);
+    }
+
+    function showMsg(id, text, type) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = 'msg' + (text ? ' show ' + type : '');
+    }
+
+    function setLoading(btnId, loading) {
+      const btn = document.getElementById(btnId);
+      btn.disabled = loading;
+      btn.style.opacity = loading ? '.5' : '';
+    }
+
+    async function doLogin() {
+      const name = document.getElementById('loginName').value.trim();
+      const key  = document.getElementById('loginKey').value;
+      if (!name || !key) { showMsg('loginMsg', 'Compila tutti i campi.', 'err'); return; }
+
+      setLoading('loginBtn', true);
+      showMsg('loginMsg', '', '');
+
+      try {
+        const headRes = await fetch(BASE + '/data/' + encodeURIComponent(name), { method: 'HEAD' });
+        let payload = {};
+        let isNew = false;
+        let updatedAt = '';
+
+        if (headRes.status === 404) {
+          isNew = true;
+        } else {
+          const getRes = await fetch(BASE + '/data/' + encodeURIComponent(name) + '?key=' + encodeURIComponent(key));
+          if (getRes.status === 401) { showMsg('loginMsg', 'Chiave errata.', 'err'); setLoading('loginBtn', false); return; }
+          const data = await getRes.json();
+          payload = data.payload;
+          updatedAt = data.updatedAt;
+        }
+
+        _name = name; _key = key;
+        closeModal('loginOverlay');
+        openEditorModal(name, payload, isNew, updatedAt);
+      } catch(e) {
+        showMsg('loginMsg', 'Errore di rete.', 'err');
+      }
+      setLoading('loginBtn', false);
+    }
+
+    function openEditorModal(name, payload, isNew, updatedAt) {
+      document.getElementById('editorTitle').textContent = name;
+      const meta = isNew
+        ? 'namespace nuovo — verrà creato al salvataggio'
+        : 'aggiornato il ' + new Date(updatedAt).toLocaleString('it-IT');
+      document.getElementById('editorMeta').textContent = meta;
+      document.getElementById('editorArea').value = JSON.stringify(payload, null, 2);
+      document.getElementById('editorArea').classList.remove('error');
+      showMsg('editorMsg', '', '');
+      document.getElementById('editorOverlay').classList.add('open');
+      setTimeout(() => document.getElementById('editorArea').focus(), 50);
+    }
+
+    async function doSave() {
+      const raw = document.getElementById('editorArea').value;
+      let payload;
+      try {
+        payload = JSON.parse(raw);
+        document.getElementById('editorArea').classList.remove('error');
+      } catch(e) {
+        document.getElementById('editorArea').classList.add('error');
+        showMsg('editorMsg', 'JSON non valido.', 'err');
+        return;
+      }
+
+      setLoading('saveBtn', true);
+      showMsg('editorMsg', '', '');
+
+      try {
+        const res = await fetch(BASE + '/data/' + encodeURIComponent(_name), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: _key, payload })
+        });
+        if (res.status === 401) { showMsg('editorMsg', 'Chiave errata.', 'err'); setLoading('saveBtn', false); return; }
+        showMsg('editorMsg', 'Salvato.', 'ok');
+        const now = new Date().toLocaleString('it-IT');
+        document.getElementById('editorMeta').textContent = 'aggiornato il ' + now;
+      } catch(e) {
+        showMsg('editorMsg', 'Errore di rete.', 'err');
+      }
+      setLoading('saveBtn', false);
+    }
+
+    // invio con Enter nei campi login
+    ['loginName','loginKey'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    });
+
+    // Escape chiude il modal aperto
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        ['editorOverlay','loginOverlay'].forEach(id => closeModal(id));
+      }
+    });
+  </script>
 </body>
 </html>`);
 });
