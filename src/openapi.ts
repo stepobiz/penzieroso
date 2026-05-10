@@ -1,3 +1,4 @@
+export function buildSpec(basePath: string) {
 const spec = {
   openapi: '3.0.3',
   info: {
@@ -6,7 +7,7 @@ const spec = {
     description:
       'Generic key-value storage REST backend. Ogni namespace è protetto da una chiave hashata con bcrypt. Nessuna logica applicativa — solo storage.',
   },
-  servers: [{ url: '/data', description: 'Data API' }],
+  servers: [{ url: `${basePath}/data`, description: 'Data API' }],
   paths: {
     '/{name}': {
       parameters: [
@@ -220,5 +221,7 @@ const spec = {
     },
   },
 };
+  return spec;
+}
 
-export default spec;
+export default buildSpec('');

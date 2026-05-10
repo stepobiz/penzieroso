@@ -2,10 +2,13 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import swaggerUi from 'swagger-ui-express';
 import dataRouter from './routes/data';
-import openapiSpec from './openapi';
+import { buildSpec } from './openapi';
 
 const app = express();
 const PORT = 3000;
+const BASE_PATH = (process.env.BASE_PATH || '').replace(/\/$/, '');
+
+const spec = buildSpec(BASE_PATH);
 
 app.use(cors());
 app.use(express.json());
@@ -18,16 +21,17 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
-app.get('/openapi.json', (_req: Request, res: Response) => {
-  res.json(openapiSpec);
+app.get(`${BASE_PATH}/openapi.json`, (_req: Request, res: Response) => {
+  res.json(spec);
 });
 
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
+app.use(`${BASE_PATH}/docs`, swaggerUi.serve, swaggerUi.setup(spec, {
   customSiteTitle: 'Penzieroso API',
   customCss: '.swagger-ui .topbar { display: none }',
 }));
 
-app.get('/', (_req: Request, res: Response) => {
+app.get(`${BASE_PATH}/`, (_req: Request, res: Response) => {
+  const base = BASE_PATH;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
 <html lang="it">
@@ -68,36 +72,36 @@ app.get('/', (_req: Request, res: Response) => {
     <div class="flow">
       <div class="step">
         <span class="comment"># 1. Crea un namespace (prima chiamata = registrazione)</span><br>
-        <span class="method">POST</span> <span class="path">/data/myapp</span>  { key, payload: {} }<span class="status">→ 201</span>
+        <span class="method">POST</span> <span class="path">${base}/data/myapp</span>  { key, payload: {} }<span class="status">→ 201</span>
       </div>
       <div class="step">
         <span class="comment"># 2. Leggi il payload</span><br>
-        <span class="method">GET</span> <span class="path">/data/myapp?key=…</span><span class="status">→ 200</span>
+        <span class="method">GET</span> <span class="path">${base}/data/myapp?key=…</span><span class="status">→ 200</span>
       </div>
       <div class="step">
         <span class="comment"># 3. Aggiorna il payload</span><br>
-        <span class="method">POST</span> <span class="path">/data/myapp</span>  { key, payload: {…} }<span class="status">→ 200</span>
+        <span class="method">POST</span> <span class="path">${base}/data/myapp</span>  { key, payload: {…} }<span class="status">→ 200</span>
       </div>
       <div class="step">
         <span class="comment"># 4. Controlla se esiste (senza chiave)</span><br>
-        <span class="method">HEAD</span> <span class="path">/data/myapp</span><span class="status">→ 200 / 404</span>
+        <span class="method">HEAD</span> <span class="path">${base}/data/myapp</span><span class="status">→ 200 / 404</span>
       </div>
       <div class="step">
         <span class="comment"># 5. Cambia chiave</span><br>
-        <span class="method">PUT</span> <span class="path">/data/myapp/key</span>  { oldKey, newKey }<span class="status">→ 200</span>
+        <span class="method">PUT</span> <span class="path">${base}/data/myapp/key</span>  { oldKey, newKey }<span class="status">→ 200</span>
       </div>
     </div>
 
     <div class="links">
-      <a class="btn btn-primary" href="/docs">Swagger UI</a>
-      <a class="btn btn-secondary" href="/openapi.json">openapi.json</a>
+      <a class="btn btn-primary" href="${base}/docs">Swagger UI</a>
+      <a class="btn btn-secondary" href="${base}/openapi.json">openapi.json</a>
     </div>
   </div>
 </body>
 </html>`);
 });
 
-app.use('/data', dataRouter);
+app.use(`${BASE_PATH}/data`, dataRouter);
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: 'not found' });
@@ -109,7 +113,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`penzieroso listening on port ${PORT}`);
+  console.log(`penzieroso listening on port ${PORT} — base path: "${BASE_PATH || '/'}"`);
 });
 
 process.on('uncaughtException', (err) => {

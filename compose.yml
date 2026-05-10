@@ -1,8 +1,19 @@
 services:
   penzieroso:
     image: stepobiz/penzieroso:latest
-    ports:
-      - "3000:3000"
+    environment:
+      - BASE_PATH=/penzieroso
     volumes:
       - ./data:/app/data
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.penzieroso.rule=Host(`stefano-apps.cavallaro.eu`) && PathPrefix(`/penzieroso`)
+      - traefik.http.routers.penzieroso.entrypoints=web
+      - traefik.http.services.penzieroso.loadbalancer.server.port=3000
     restart: unless-stopped
+
+networks:
+  proxy:
+    external: true
