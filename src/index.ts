@@ -113,9 +113,31 @@ app.get(`${BASE_PATH}/`, (_req: Request, res: Response) => {
     </div>
 
     <div class="links">
-      <button class="btn btn-primary" onclick="openLoginModal()">Apri namespace</button>
+      <button class="btn btn-primary" onclick="openCreateModal()">Crea namespace</button>
+      <button class="btn btn-secondary" onclick="openLoginModal()">Apri namespace</button>
       <a class="btn btn-secondary" href="${base}/docs">Swagger UI</a>
       <a class="btn btn-secondary" href="${base}/openapi.json">openapi.json</a>
+    </div>
+  </div>
+
+  <!-- crea namespace -->
+  <div class="overlay" id="createOverlay" onclick="overlayClick(event,'createOverlay')">
+    <div class="modal">
+      <div class="modal-title">Crea namespace</div>
+      <label>Name
+        <input type="text" id="createName" placeholder="myapp" autocomplete="off" />
+      </label>
+      <label>Key
+        <input type="password" id="createKey" placeholder="••••••••" />
+      </label>
+      <label>Conferma key
+        <input type="password" id="createKeyConfirm" placeholder="••••••••" />
+      </label>
+      <div class="msg" id="createMsg"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal('createOverlay')">Annulla</button>
+        <button class="btn btn-primary" id="createBtn" onclick="doCreate()">Crea</button>
+      </div>
     </div>
   </div>
 
@@ -156,6 +178,39 @@ app.get(`${BASE_PATH}/`, (_req: Request, res: Response) => {
   <script>
     const BASE = '${base}';
     let _name = '', _key = '';
+
+    function openCreateModal() {
+      ['createName','createKey','createKeyConfirm'].forEach(id => document.getElementById(id).value = '');
+      showMsg('createMsg', '', '');
+      document.getElementById('createOverlay').classList.add('open');
+      setTimeout(() => document.getElementById('createName').focus(), 50);
+    }
+
+    async function doCreate() {
+      const name    = document.getElementById('createName').value.trim();
+      const key     = document.getElementById('createKey').value;
+      const confirm = document.getElementById('createKeyConfirm').value;
+      if (!name || !key) { showMsg('createMsg', 'Compila tutti i campi.', 'err'); return; }
+      if (key !== confirm) { showMsg('createMsg', 'Le key non coincidono.', 'err'); return; }
+
+      setLoading('createBtn', true);
+      showMsg('createMsg', '', '');
+
+      try {
+        const headRes = await fetch(BASE + '/data/' + encodeURIComponent(name), { method: 'HEAD' });
+        if (headRes.status === 200) {
+          showMsg('createMsg', 'Namespace già esistente. Usa "Apri namespace".', 'err');
+          setLoading('createBtn', false);
+          return;
+        }
+        _name = name; _key = key;
+        closeModal('createOverlay');
+        openEditorModal(name, {}, true, '');
+      } catch(e) {
+        showMsg('createMsg', 'Errore di rete.', 'err');
+      }
+      setLoading('createBtn', false);
+    }
 
     function openLoginModal() {
       document.getElementById('loginName').value = '';
@@ -265,6 +320,11 @@ app.get(`${BASE_PATH}/`, (_req: Request, res: Response) => {
     // invio con Enter nei campi login
     ['loginName','loginKey'].forEach(id => {
       document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    });
+
+    // invio con Enter nei campi crea
+    ['createName','createKey','createKeyConfirm'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doCreate(); });
     });
 
     // Escape chiude il modal aperto
